@@ -1,0 +1,61 @@
+version: '3.8'
+
+services:
+  api:
+    build: ./backend
+    ports:
+      - "3001:3001"
+    environment:
+      - MONGODB_URI=mongodb://mongo:27017/secureclaw
+      - PORT=3001
+      - JWT_SECRET=${JWT_SECRET:-change-this-secret}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - mongo
+    restart: unless-stopped
+    networks:
+      - secureclaw-network
+
+  mongo:
+    image: mongo:7
+    volumes:
+      - mongo_data:/data/db
+    restart: unless-stopped
+    networks:
+      - secureclaw-network
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://localhost:3001
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - secureclaw-network
+
+  traefik:
+    image: traefik:v3.0
+    command:
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+      - "--api.insecure=true"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    restart: unless-stopped
+    networks:
+      - secureclaw-network
+
+networks:
+  secureclaw-network:
+    driver: bridge
+
+volumes:
+  mongo_data:
+    driver: local

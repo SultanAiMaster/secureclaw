@@ -1,0 +1,18 @@
+channels:
+  telegram:
+    enabled: true
+    botToken: "BOT_TOKEN_PLACEHOLDER"
+
+model:
+  provider: "anthropic"
+  name: "AI_MODEL_PLACEHOLDER"
+
+privacy:
+  enabled: true
+  router: "localhost:8090"
+  blockExternalTelemetry: true
+
+agent:
+  name: "SecureClaw Agent"
+  memory: true
+  maxTokens: 4096
