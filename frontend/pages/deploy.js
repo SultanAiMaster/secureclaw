@@ -123,10 +123,10 @@ export default function Deploy() {
             </p>
 
             {/* Plan Status Badge */}
-            {userPlan && (
+            {userPlan && userPlan.hasActivePlan && (
               <div style={{
-                background: userPlan.canDeploy ? '#f0fdf4' : '#fff7ed',
-                border: userPlan.canDeploy ? '1px solid #bbf7d0' : '1px solid #fed7aa',
+                background: '#f0fdf4',
+                border: '1px solid #bbf7d0',
                 borderRadius: '20px',
                 padding: '8px 16px',
                 display: 'inline-flex',
@@ -136,22 +136,24 @@ export default function Deploy() {
                 fontSize: '12px'
               }}>
                 <span style={{
-                  color: userPlan.canDeploy ? '#16a34a' : '#ea580c',
+                  color: '#16a34a',
                   fontWeight: '600'
                 }}>
-                  {userPlan.plan.name}
+                  {userPlan.plan.name} - Active
                 </span>
                 <span style={{ color: '#8589b0' }}>•</span>
                 <span style={{ color: '#4a4d72' }}>
-                  {userPlan.remainingAgents} agent{userPlan.remainingAgents !== 1 ? 's' : ''} remaining
+                  {userPlan.daysRemaining} {userPlan.daysRemaining === 1 ? 'day' : 'days'} remaining
                 </span>
-                <Link href="/pricing" style={{
-                  color: userPlan.canDeploy ? '#16a34a' : '#2251cc',
-                  textDecoration: 'none',
-                  fontWeight: '600'
-                }}>
-                  {userPlan.canDeploy ? 'Upgrade' : 'Upgrade Plan →'}
-                </Link>
+                {userPlan.daysRemaining <= 1 && (
+                  <Link href="/pricing" style={{
+                    color: '#16a34a',
+                    textDecoration: 'none',
+                    fontWeight: '600'
+                  }}>
+                    Extend trial →
+                  </Link>
+                )}
               </div>
             )}
           </div>

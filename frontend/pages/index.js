@@ -782,17 +782,19 @@ export default function Home() {
 
       <script jsx>{`
         // Scroll reveal - will run on client
-        useEffect(() => {
-          const reveals = document.querySelectorAll('.reveal');
-          const observer = new IntersectionObserver((entries) => {
-            entries.forEach(e => {
-              if (e.isIntersecting) {
-                e.target.classList.add('visible');
-              }
-            });
-          }, { threshold: 0.12 });
-          reveals.forEach(r => observer.observe(r));
-        }, []);
+        if (typeof window !== 'undefined') {
+          window.addEventListener('load', () => {
+            const reveals = document.querySelectorAll('.reveal');
+            const observer = new IntersectionObserver((entries) => {
+              entries.forEach(e => {
+                if (e.isIntersecting) {
+                  e.target.classList.add('visible');
+                }
+              });
+            }, { threshold: 0.12 });
+            reveals.forEach(r => observer.observe(r));
+          });
+        }
       `}</script>
 
       {/* NAV */}
@@ -803,7 +805,7 @@ export default function Home() {
           <li><Link href="/pricing">Pricing</Link></li>
           <li><Link href="#docs">Docs</Link></li>
           <li><Link href="#blog">Blog</Link></li>
-          <li><Link href="/deploy" className="nav-cta">Deploy Free →</Link></li>
+          <li><Link href="/pricing" className="nav-cta">Purchase Now</Link></li>
         </ul>
       </nav>
 
@@ -820,7 +822,7 @@ export default function Home() {
           No server config. No privacy leaks. Just deploy.
         </p>
         <div className="hero-actions">
-          <Link href="/deploy" className="btn-primary">🚀 Deploy Free Trial</Link>
+          <Link href="/pricing" className="btn-primary">🚀 Purchase Now</Link>
           <a href="#" className="btn-secondary">▶ Watch Demo</a>
         </div>
 
@@ -941,8 +943,8 @@ export default function Home() {
             </div>
             <div className="feature-card reveal">
               <div className="feature-icon icon-blue">🇮🇳</div>
-              <h3>India-First Pricing</h3>
-              <p>Pay in ₹ with UPI. Start from FREE tier. ₹99/month for 3 agents. Cheaper than competitors 10x.</p>
+              <h3>₹999 for 24 Hours</h3>
+              <p>Pay once. Get 24 hours access. 1 agent included. No monthly commitment. Restart anytime.</p>
             </div>
             <div className="feature-card reveal">
               <div className="feature-icon icon-pink">🔄</div>
@@ -953,56 +955,28 @@ export default function Home() {
         </div>
       </section>
 
-      {/* PRICING - USING YOUR DESIGN BUT MY PRICING */}
+      {/* PRICING - SINGLE ₹999 PLAN */}
       <section className="pricing-section">
         <div className="section-tag reveal">Pricing</div>
-        <h2 className="section-title reveal">Simple, India-first pricing.</h2>
-        <p className="section-sub reveal" style={{margin: '0 auto 0', textAlign: 'center'}}>Start free. Scale as you grow. Pay via UPI.</p>
-        <div className="pricing-grid">
-          <div className="price-card reveal">
-            <div className="plan-name">Starter</div>
-            <div className="plan-price">FREE</div>
-            <div className="plan-period">Forever</div>
+        <h2 className="section-title reveal">One simple price.</h2>
+        <p className="section-sub reveal" style={{margin: '0 auto 0', textAlign: 'center'}}>Purchase once. Activate for 24 hours. Deploy up to 1 AI agent. No monthly commitment.</p>
+        <div className="pricing-grid" style={{gridTemplateColumns: '1fr', maxWidth: '600px', margin: '60px auto 0'}}>
+          <div className="price-card featured reveal">
+            <div className="plan-name">1-Day Trial</div>
+            <div className="plan-price">₹999</div>
+            <div className="plan-period">for 1 day (24 hours)</div>
             <ul className="plan-features">
-              <li>1 AI Agent</li>
-              <li>Basic AI models (Claude 3, GPT-4o)</li>
+              <li>1 AI Agent deployment</li>
+              <li>All AI models (Claude 3.5, GPT-4o, Gemini)</li>
               <li>Custom subdomain</li>
               <li>512MB memory per agent</li>
-              <li>Community support</li>
-              <li><strong>Zero cost forever</strong></li>
-            </ul>
-            <Link href="/deploy" className="btn-plan btn-plan-outline">Deploy Free</Link>
-          </div>
-
-          <div className="price-card featured reveal">
-            <div className="price-badge">Most Popular</div>
-            <div className="plan-name">Starter Pro</div>
-            <div className="plan-price">₹99</div>
-            <div className="plan-period">per month</div>
-            <ul className="plan-features">
-              <li>3 AI Agents</li>
-              <li>Advanced AI (Claude 3.5, GPT-4o, Gemini)</li>
-              <li>Custom domain support</li>
-              <li>1GB memory per agent</li>
-              <li>Email support</li>
+              <li>Full privacy protection</li>
+              <li>No monthly commitment</li>
               <li>Pay via UPI, Card, Netbanking</li>
             </ul>
-            <Link href="/pricing" className="btn-plan btn-plan-white">Get Started</Link>
-          </div>
-
-          <div className="price-card reveal">
-            <div className="plan-name">Business</div>
-            <div className="plan-price">₹699</div>
-            <div className="plan-period">per month</div>
-            <ul className="plan-features">
-              <li>Unlimited Agents</li>
-              <li>All AI models + Nemotron</li>
-              <li>Enterprise security suite</li>
-              <li>2GB+ memory per agent</li>
-              <li>24/7 Priority support</li>
-              <li>White-label domain option</li>
-            </ul>
-            <Link href="/pricing" className="btn-plan btn-plan-outline">Get Started</Link>
+            <Link href="/pricing" className="btn-plan btn-plan-white">
+              Purchase Now - ₹999
+            </Link>
           </div>
         </div>
       </section>
@@ -1011,10 +985,10 @@ export default function Home() {
       <section className="cta-section reveal">
         <div className="cta-bg"></div>
         <h2>Your AI agent deserves<br/>a better home.</h2>
-        <p>Join 500+ builders already deploying with SecureClaw.<br/>First 14 days absolutely free.</p>
+        <p>Join 500+ builders already deploying with SecureClaw.<br/>Purchase once, activate for 24 hours.</p>
         <div className="email-form">
           <input type="email" className="email-input" placeholder="Enter your email address" />
-          <button className="btn-cta">Start Free →</button>
+          <button className="btn-cta">Purchase Now →</button>
         </div>
       </section>
 

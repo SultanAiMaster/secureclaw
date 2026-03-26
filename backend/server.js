@@ -26,7 +26,7 @@ const Deployment = mongoose.model('Deployment', new mongoose.Schema({
   containerId: String,
   subdomain: String,
   status: { type: String, default: 'running' },
-  plan: { type: String, default: 'free' },
+  plan: { type: String, default: 'trial' },
   expiryDate: Date,
   createdAt: { type: Date, default: Date.now }
 }))
@@ -38,109 +38,56 @@ const Payment = mongoose.model('Payment', new mongoose.Schema({
   amount: Number,
   currency: { type: String, default: 'INR' },
   plan: String,
-  duration: Number, // in months
+  days: Number,
   status: { type: String, enum: ['created', 'paid', 'failed', 'refunded'], default: 'created' },
   createdAt: { type: Date, default: Date.now },
   updatedAt: { type: Date, default: Date.now }
 }))
 
 const User = mongoose.model('User', new mongoose.Schema({
-  userId: String, // Unique user identifier
-  telegramToken: String, // For agent deployment
-  deployedAgentId: String, // Reference to deployment
-  currentPlan: { type: String, default: 'free' },
+  userId: String,
+  telegramToken: String,
+  deployedAgentId: String,
+  currentPlan: { type: String, default: 'trial' },
   planExpiry: Date,
   totalAgents: { type: Number, default: 0 },
-  maxAgents: { type: Number, default: 1 }, // Based on plan
+  maxAgents: { type: Number, default: 1 },
   createdAt: { type: Date, default: Date.now },
   lastPayment: Date,
   paymentHistory: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Payment' }]
 }))
 
-// PLANS - India pricing in INR
-const PLANS = {
-  free: {
-    name: "Starter",
-    price: 0,
-    duration: 0, // Lifetime free
-    features: ["1 agent", "Basic AI models", "512MB memory", "Community support"],
-    maxAgents: 1,
-    durationMonths: 0
-  },
-  starter: {
-    name: "Starter Pro",
-    price: 99, // ₹99
-    duration: 1, // 1 month
-    features: ["3 agents", "Advanced AI (Claude 3.5, GPT-4o)", "1GB memory", "Email support", "Priority deployment"],
-    maxAgents: 3,
-    durationMonths: 1
-  },
-  pro: {
-    name: "Pro",
-    price: 249, // ₹249
-    duration: 1, // 1 month
-    features: ["10 agents", "All AI models", "2GB memory", "Priority support", "Custom domain"],
-    maxAgents: 10,
-    durationMonths: 1
-  },
-  business: {
-    name: "Business",
-    price: 699, // ₹699
-    duration: 1, // 1 month
-    features: ["Unlimited agents", "All AI models", "4GB memory", "24/7 support", "API access", "Team accounts"],
-    maxAgents: 999,
-    durationMonths: 1
-  },
-  annual: {
-    name: "Annual Pro",
-    price: 2499, // ₹2499 (saves 58%)
-    duration: 12, // 12 months
-    features: ["Everything in Pro", "12 months for price of 10", "Dedicated support", "Free upgrades"],
-    maxAgents: 10,
-    durationMonths: 12
-  }
+// SINGLE PLAN - ₹999 for 1 day
+const PLAN = {
+  name: "1-Day Trial",
+  price: 999,
+  days: 1,
+  features: ["1 AI Agent", "All AI models", "512MB memory", "Full privacy", "24-hour access"],
+  maxAgents: 1
 }
 
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }))
 
-// ==================== PAYMENT ENDPOINTS ====================
-
-// Get available plans
-app.get('/api/plans', (req, res) => {
-  res.json({ plans: PLANS })
+// GET plan info
+app.get('/api/plan', (req, res) => {
+  res.json({ plan: PLAN })
 })
 
-// Create Razorpay order
+// Create Razorpay order for ₹999
 app.post('/api/payment/create-order', async (req, res) => {
   try {
-    const { userId, planName } = req.body
-
-    if (!PLANS[planName]) {
-      return res.status(400).json({ error: 'Invalid plan' })
-    }
-
-    const plan = PLANS[planName]
-
-    if (plan.price === 0) {
-      // Free plan, no payment needed
-      await saveFreePlan(userId, planName)
-      return res.json({
-        success: true,
-        freePlan: true,
-        message: 'Free plan activated',
-        plan: planName
-      })
-    }
+    const { userId } = req.body
+    const amount = PLAN.price
 
     // Create Razorpay order (amount in paise, so multiply by 100)
     const order = await razorpay.orders.create({
-      amount: plan.price * 100,
+      amount: amount * 100,
       currency: 'INR',
       receipt: `receipt_${userId}_${Date.now()}`,
       notes: {
         userId: userId,
-        plan: planName
+        plan: PLAN.name
       }
     })
 
@@ -148,10 +95,10 @@ app.post('/api/payment/create-order', async (req, res) => {
     const payment = await Payment.create({
       userId,
       orderId: order.id,
-      amount: plan.price,
+      amount: amount,
       currency: 'INR',
-      plan: planName,
-      duration: plan.durationMonths,
+      plan: PLAN.name,
+      days: PLAN.days,
       status: 'created'
     })
 
@@ -162,8 +109,10 @@ app.post('/api/payment/create-order', async (req, res) => {
         amount: order.amount / 100,
         currency: order.currency,
         key_id: process.env.RAZORPAY_KEY_ID,
-        plan: planName
-      }
+        plan: PLAN.name,
+        days: PLAN.days
+      },
+      plan: PLAN
     })
   } catch (err) {
     console.error('Order creation error:', err)
@@ -171,34 +120,14 @@ app.post('/api/payment/create-order', async (req, res) => {
   }
 })
 
-// Save free plan
-async function saveFreePlan(userId, planName) {
-  let user = await User.findOne({ userId })
-
-  if (!user) {
-    user = await User.create({
-      userId,
-      currentPlan: planName,
-      planExpiry: null, // Free plan has no expiry
-      maxAgents: PLANS[planName].maxAgents
-    })
-  } else {
-    user.currentPlan = planName
-    user.planExpiry = null
-    user.maxAgents = PLANS[planName].maxAgents
-    await user.save()
-  }
-}
-
-// Verify payment (after UPI/Card payment)
+// Verify payment
 app.post('/api/payment/verify', async (req, res) => {
   try {
     const {
       razorpay_order_id,
       razorpay_payment_id,
       razorpay_signature,
-      userId,
-      planName
+      userId
     } = req.body
 
     // Verify signature
@@ -225,25 +154,24 @@ app.post('/api/payment/verify', async (req, res) => {
     await payment.save()
 
     // Update user plan
-    const plan = PLANS[planName]
     const planExpiry = new Date()
-    planExpiry.setMonth(planExpiry.getMonth() + plan.durationMonths)
+    planExpiry.setDate(planExpiry.getDate() + PLAN.days)
 
     let user = await User.findOne({ userId })
 
     if (!user) {
       user = await User.create({
         userId,
-        currentPlan: planName,
+        currentPlan: PLAN.name,
         planExpiry,
-        maxAgents: plan.maxAgents,
+        maxAgents: PLAN.maxAgents,
         totalAgents: 0,
         lastPayment: new Date()
       })
     } else {
-      user.currentPlan = planName
+      user.currentPlan = PLAN.name
       user.planExpiry = planExpiry
-      user.maxAgents = plan.maxAgents
+      user.maxAgents = PLAN.maxAgents
       user.lastPayment = new Date()
       user.paymentHistory.push(payment._id)
       await user.save()
@@ -252,7 +180,8 @@ app.post('/api/payment/verify', async (req, res) => {
     res.json({
       success: true,
       message: 'Payment verified successfully',
-      plan: planName,
+      plan: PLAN.name,
+      days: PLAN.days,
       expiryDate: planExpiry
     })
   } catch (err) {
@@ -261,58 +190,66 @@ app.post('/api/payment/verify', async (req, res) => {
   }
 })
 
-// Get user plan status
+// GET user plan status
 app.get('/api/user/plan/:userId', async (req, res) => {
   try {
     const user = await User.findOne({ userId: req.params.userId })
       .populate('paymentHistory')
 
     if (!user) {
-      const newUser = await User.create({
-        userId: req.params.userId,
-        currentPlan: 'free',
-        maxAgents: PLANS.free.maxAgents
-      })
       return res.json({
-        user: newUser,
-        plan: PLANS.free,
-        canDeploy: true,
-        remainingAgents: PLANS.free.maxAgents
+        plan: PLAN,
+        canDeploy: false,
+        remainingAgents: 0,
+        expiryDate: null,
+        hasActivePlan: false
       })
     }
 
-    const plan = PLANS[user.currentPlan]
+    const now = new Date()
+    const isActive = user.planExpiry && user.planExpiry > now
     const remainingAgents = user.maxAgents - user.totalAgents
 
     res.json({
       user,
-      plan,
-      canDeploy: remainingAgents > 0,
-      remainingAgents: Math.max(0, remainingAgents)
+      plan: PLAN,
+      canDeploy: isActive && remainingAgents > 0,
+      remainingAgents: Math.max(0, remainingAgents),
+      expiryDate: user.planExpiry,
+      daysRemaining: isActive ? Math.ceil((user.planExpiry - now) / (1000 * 60 * 60 * 24)) : 0,
+      hasActivePlan: isActive
     })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
 })
 
-// ==================== DEPLOYMENT ENDPOINTS ====================
-
 // DEPLOY
 app.post('/api/deploy', async (req, res) => {
-  const { telegramToken, aiModel, userId, plan } = req.body
+  const { telegramToken, aiModel, userId } = req.body
 
   if (!telegramToken || !userId) {
     return res.status(400).json({ error: 'telegramToken and userId are required' })
   }
 
-  // Check user plan limits
+  // Check user plan
   const user = await User.findOne({ userId })
-  if (user && user.totalAgents >= user.maxAgents) {
+  const now = new Date()
+
+  if (!user || !user.planExpiry || user.planExpiry <= now) {
     return res.status(403).json({
-      error: 'Plan limit reached',
+      error: 'No active plan. Purchase ₹999 1-day trial to deploy.',
+      hasActivePlan: false,
+      purchaseUrl: '/pricing'
+    })
+  }
+
+  if (user.totalAgents >= user.maxAgents) {
+    return res.status(403).json({
+      error: 'Maximum agents reached (1 agent only in this plan)',
       current: user.totalAgents,
       max: user.maxAgents,
-      message: 'Upgrade your plan to deploy more agents'
+      message: 'Only 1 agent allowed in this plan'
     })
   }
 
@@ -344,7 +281,8 @@ app.post('/api/deploy', async (req, res) => {
       userId,
       telegramToken,
       aiModel,
-      plan: plan || 'free',
+      plan: PLAN.name,
+      expiryDate: user.planExpiry,
       containerId: container.id,
       subdomain,
       status: 'running'
@@ -365,9 +303,10 @@ app.post('/api/deploy', async (req, res) => {
         id: dep._id,
         subdomain: `${subdomain}.secureclaw.com`,
         status: 'running',
-        createdAt: dep.createdAt
+        createdAt: dep.createdAt,
+        expiryDate: user.planExpiry
       },
-      remainingAgents: user ? user.maxAgents - user.totalAgents : 0
+      daysRemaining: Math.ceil((user.planExpiry - now) / (1000 * 60 * 60 * 24))
     })
   } catch (err) {
     console.error('Deploy error:', err)
@@ -424,7 +363,6 @@ app.delete('/api/deploy/:id', async (req, res) => {
     await c.remove()
     await Deployment.deleteOne({ _id: dep._id })
 
-    // Update user agent count
     const user = await User.findOne({ userId: dep.userId })
     if (user && user.totalAgents > 0) {
       user.totalAgents -= 1
@@ -445,7 +383,7 @@ mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/securecla
       console.log('🚀 SecureClaw API running')
       console.log(`📡 Port: ${port}`)
       console.log(`🗄️  MongoDB: ${process.env.MONGODB_URI || 'localhost:27017/secureclaw'}`)
-      console.log(`💳 Razorpay Payments: ${process.env.RAZORPAY_KEY_ID ? 'Configured' : 'Test Mode'}`)
+      console.log(`💰 Pricing: ₹999 for 1 day, 1 agent`)
       console.log(`💰 Currency: INR (Indian Rupees)`)
     })
   })

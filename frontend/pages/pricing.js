@@ -7,15 +7,14 @@ const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 const userId = 'u_' + Math.random().toString(36).substr(2, 8)
 
 export default function Pricing() {
-  const [plans, setPlans] = useState(null)
+  const [plan, setPlan] = useState(null)
   const [userPlan, setUserPlan] = useState(null)
   const [selectedPlan, setSelectedPlan] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [showCheckout, setShowCheckout] = useState(false)
-  const [paymentSuccess, setPaymentSuccess] = useState(false)
+  const [success, setSuccess] = useState(false)
 
   useEffect(() => {
-    fetchPlans()
+    fetchPlan()
     fetchUserPlan()
 
     // Scroll reveal - run on client only
@@ -32,13 +31,13 @@ export default function Pricing() {
     }, 100)
   }, [])
 
-  const fetchPlans = async () => {
+  const fetchPlan = async () => {
     try {
-      const res = await fetch(`${API}/api/plans`)
+      const res = await fetch(`${API}/api/plan`)
       const data = await res.json()
-      setPlans(data.plans)
+      setPlan(data.plan)
     } catch (err) {
-      console.error('Failed to fetch plans:', err)
+      console.error('Failed to fetch plan:', err)
     }
   }
 
@@ -52,27 +51,20 @@ export default function Pricing() {
     }
   }
 
-  const handlePurchase = async (planName) => {
-    if (planName === 'free') {
-      // Free plan - activate directly
-      setPaymentSuccess(true)
-      return
-    }
-
+  const handlePurchase = async () => {
     setLoading(true)
-    setSelectedPlan(planName)
+    setSelectedPlan('trial')
 
     try {
       const res = await fetch(`${API}/api/payment/create-order`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, planName })
+        body: JSON.stringify({ userId })
       })
 
       const data = await res.json()
 
       if (data.success) {
-        setShowCheckout(true)
         initRazorpayCheckout(data.order)
       } else {
         alert(data.error || 'Failed to create payment')
@@ -92,11 +84,11 @@ export default function Pricing() {
         amount: order.amount * 100,
         currency: order.currency,
         name: 'SecureClaw',
-        description: `${order.plan} Plan`,
+        description: `${order.plan}: ${order.days} day trial`,
         order_id: order.id,
         image: '/logo.png',
         handler: function (response) {
-          verifyPayment(response.razorpay_order_id, response.razorpay_payment_id, response.razorpay_signature, order.plan)
+          verifyPayment(response.razorpay_order_id, response.razorpay_payment_id, response.razorpay_signature)
         },
         prefill: {
           name: '',
@@ -112,8 +104,7 @@ export default function Pricing() {
           upi: true,
           card: true,
           netbanking: true,
-          wallet: true,
-          emi: true
+          wallet: true
         }
       }
 
@@ -127,7 +118,7 @@ export default function Pricing() {
     }
   }
 
-  const verifyPayment = async (orderId, paymentId, signature, planName) => {
+  const verifyPayment = async (orderId, paymentId, signature) => {
     try {
       const res = await fetch(`${API}/api/payment/verify`, {
         method: 'POST',
@@ -136,15 +127,13 @@ export default function Pricing() {
           razorpay_order_id: orderId,
           razorpay_payment_id: paymentId,
           razorpay_signature: signature,
-          userId,
-          planName
+          userId
         })
       })
 
       const data = await res.json()
       if (data.success) {
-        setPaymentSuccess(true)
-        setShowCheckout(false)
+        setSuccess(true)
         fetchUserPlan()
       } else {
         alert('Payment verification failed')
@@ -155,10 +144,10 @@ export default function Pricing() {
     }
   }
 
-  if (!plans) {
+  if (!plan) {
     return (
       <div style={{ textAlign: 'center', padding: '50px', fontFamily: 'DM Sans, sans-serif' }}>
-        Loading plans...
+        Loading pricing...
       </div>
     )
   }
@@ -255,7 +244,7 @@ export default function Pricing() {
         .pricing-section {
           min-height: 100vh;
           padding: 100px 24px;
-          max-width: 1000px;
+          max-width: 600px;
           margin: 0 auto;
           text-align: center;
         }
@@ -271,7 +260,7 @@ export default function Pricing() {
 
         .section-title {
           font-family: 'Fraunces', serif;
-          font-size: clamp(30px, 4vw, 46px);
+          font-size: clamp(30px, 5vw, 46px);
           font-weight: 700;
           letter-spacing: -1.5px;
           line-height: 1.1;
@@ -282,220 +271,159 @@ export default function Pricing() {
           color: var(--text-mid);
           font-size: 16px;
           line-height: 1.7;
-          max-width: 600px;
           margin: 0 auto 0;
           text-align: center;
         }
 
-        .pricing-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 20px;
-          margin-top: 60px;
-        }
-
         .price-card {
-          background: var(--white);
-          border: 1.5px solid var(--blue-light);
-          border-radius: 24px;
-          padding: 36px 28px;
-          transition: all 0.25s;
+          background: linear-gradient(135deg, var(--blue-deep) 0%, #1a3fa8 100%);
+          border: 1.5px solid var(--blue-deep);
+          border-radius: 32px;
+          padding: 48px 40px;
           text-align: left;
           position: relative;
-        }
-
-        .price-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 20px 60px rgba(59,111,240,0.14);
-        }
-
-        .price-card.featured {
-          background: var(--blue-deep);
-          border-color: var(--blue-deep);
-          color: white;
+          margin-top: 60px;
+          box-shadow: 0 24px 80px rgba(34,81,204,0.25);
         }
 
         .price-badge {
           position: absolute;
-          top: -12px;
+          top: -16px;
           left: 50%;
           transform: translateX(-50%);
           background: var(--pink-accent);
           color: white;
-          font-size: 11px;
+          font-size: 12px;
           font-weight: 700;
-          padding: 4px 14px;
+          padding: 6px 20px;
           border-radius: 50px;
           letter-spacing: 0.5px;
           text-transform: uppercase;
-          white-space: nowrap;
         }
 
         .plan-name {
-          font-size: 13px;
+          font-size: 14px;
           font-weight: 600;
           letter-spacing: 1px;
           text-transform: uppercase;
-          color: var(--text-light);
-          margin-bottom: 10px;
-        }
-
-        .price-card.featured .plan-name {
           color: rgba(255,255,255,0.6);
+          margin-bottom: 16px;
+          text-align: center;
         }
 
         .plan-price {
           font-family: 'Fraunces', serif;
-          font-size: 46px;
+          font-size: 64px;
           font-weight: 700;
           letter-spacing: -2px;
-          color: var(--text-dark);
+          color: white;
           line-height: 1;
           margin-bottom: 4px;
+          text-align: center;
         }
-
-        .price-card.featured .plan-price { color: white; }
 
         .plan-period {
-          font-size: 13px;
-          color: var(--text-light);
-          margin-bottom: 24px;
-        }
-
-        .price-card.featured .plan-period {
+          font-size: 16px;
           color: rgba(255,255,255,0.55);
+          margin-bottom: 32px;
+          text-align: center;
         }
 
         .plan-features {
           list-style: none;
-          margin-bottom: 28px;
+          margin-bottom: 32px;
           display: flex;
           flex-direction: column;
-          gap: 10px;
+          gap: 12px;
         }
 
         .plan-features li {
-          font-size: 14px;
-          color: var(--text-mid);
+          font-size: 15px;
+          color: rgba(255,255,255,0.85);
           display: flex;
-          gap: 10px;
+          gap: 12px;
           align-items: flex-start;
-        }
-
-        .price-card.featured .plan-features li {
-          color: rgba(255,255,255,0.8);
         }
 
         .plan-features li::before {
           content: '✓';
-          color: var(--blue-mid);
+          color: var(--pink-mid);
           font-weight: 700;
           flex-shrink: 0;
           margin-top: 1px;
         }
 
-        .price-card.featured .plan-features li::before { color: var(--pink-mid); }
-
         .btn-plan {
           width: 100%;
-          padding: 13px;
+          padding: 18px;
           border-radius: 50px;
-          font-size: 14px;
-          font-weight: 600;
+          font-size: 16px;
+          font-weight: 700;
           cursor: pointer;
           border: none;
           transition: all 0.2s;
           text-align: center;
-          text-decoration: none;
-          display: block;
-        }
-
-        .btn-plan-outline {
-          background: transparent;
-          border: 1.5px solid var(--blue-light);
-          color: var(--blue-deep);
-        }
-
-        .btn-plan-outline:hover {
-          border-color: var(--blue-mid);
-          background: var(--blue-pale);
         }
 
         .btn-plan-white {
           background: white;
           color: var(--blue-deep);
+          box-shadow: 0 8px 32px rgba(255,255,255,0.2);
         }
 
         .btn-plan-white:hover {
           background: var(--pink-light);
-          transform: translateY(-1px);
+          transform: translateY(-2px);
+          box-shadow: 0 12px 40px rgba(255,255,255,0.3);
         }
 
-        .btn-plan-primary {
-          background: var(--blue-deep);
-          color: white;
-        }
-
-        .btn-plan-primary:hover {
-          background: var(--blue-mid);
-          transform: translateY(-1px);
-        }
-
-        .btn-plan-primary:disabled {
-          background: var(--blue-light);
+        .btn-plan-white:disabled {
+          background: rgba(255,255,255,0.3);
           cursor: not-allowed;
-          opacity: 0.6;
+          box-shadow: none;
+          transform: none;
         }
 
-        /* PAYMENT METHODS */
-        .payment-methods {
-          margin-top: 16px;
-          font-size: 11px;
-          color: var(--text-light);
+        .button-sub {
+          font-size: 13px;
+          color: rgba(255,255,255,0.6);
           text-align: center;
-        }
-
-        .payment-icons {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 8px;
-          margin-top: 8px;
-          font-size: 18px;
+          margin-top: 12px;
         }
 
         /* USER PLAN STATUS */
         .user-plan-status {
-          max-width: 600px;
-          margin: 0 auto 40px;
+          max-width: 500px;
+          margin: 0 auto 50px;
           background: var(--white);
-          padding: 24px 32px;
+          padding: 28px 32px;
           border-radius: 16px;
           border: 1.5px solid var(--blue-light);
           text-align: center;
         }
 
         .current-plan {
-          font-size: 13px;
-          color: var(--text-light);
-          margin-bottom: 8px;
+          font-size: 15px;
+          color: var(--text-mid);
+          margin-bottom: 10px;
         }
 
-        .plan-badge {
-          font-size: 20px;
+        .plan-badge-status {
+          font-size: 22px;
           font-weight: 700;
           color: var(--blue-deep);
-          margin-bottom: 10px;
+          margin-bottom: 12px;
+        }
+
+        .days-remaining {
+          font-size: 16px;
+          color: var(--text-mid);
+          margin-bottom: 8px;
+          font-weight: 500;
         }
 
         .remaining {
           font-size: 14px;
-          color: var(--text-mid);
-          margin-bottom: 8px;
-        }
-
-        .expiry {
-          font-size: 12px;
           color: var(--text-light);
         }
 
@@ -531,13 +459,13 @@ export default function Pricing() {
 
         /* FAQ */
         .faq-section {
-          max-width: 800px;
+          max-width: 700px;
           margin: 60px auto;
           text-align: center;
         }
 
         .faq-title {
-          font-size: 24px;
+          font-size: 22px;
           font-weight: 700;
           color: var(--text-dark);
           margin-bottom: 30px;
@@ -545,7 +473,7 @@ export default function Pricing() {
 
         .faq-item {
           text-align: left;
-          margin-bottom: 20px;
+          margin-bottom: 16px;
           padding: 20px;
           background: var(--white);
           border: 1.5px solid var(--blue-light);
@@ -553,20 +481,16 @@ export default function Pricing() {
         }
 
         .faq-question {
-          font-size: 16px;
+          font-size: 15px;
           font-weight: 600;
           color: var(--text-dark);
           margin-bottom: 8px;
-          display: flex;
-          gap: 10px;
-          align-items: flex-start;
         }
 
         .faq-answer {
           font-size: 14px;
           color: var(--text-mid);
           line-height: 1.6;
-          padding-left: 36px;
         }
 
         /* FOOTER */
@@ -610,9 +534,10 @@ export default function Pricing() {
         @media (max-width: 768px) {
           nav { padding: 16px 20px; }
           .nav-links { display: none; }
-          .pricing-grid { grid-template-columns: 1fr; }
           .faq-section { padding: 0 16px; }
           footer { padding: 32px 20px; flex-direction: column; align-items: flex-start; }
+          .pricing-section { padding: 60px 20px; }
+          .price-card { padding: 36px 28px; }
         }
       `}</style>
 
@@ -623,128 +548,82 @@ export default function Pricing() {
           <li><Link href="/#features">Features</Link></li>
           <li><Link href="/pricing" style={{color: 'var(--blue-deep)'}}>Pricing</Link></li>
           <li><Link href="#docs">Docs</Link></li>
-          <li><Link href="/deploy" className="nav-cta">Deploy →</Link></li>
+          <li><Link href="/deploy" className="nav-cta">Deploy Now</Link></li>
         </ul>
       </nav>
 
-      {/* PRICING */}
+      {/* PRICING --}}
       <section className="pricing-section">
         <div className="section-tag reveal">Pricing</div>
-        <h2 className="section-title reveal">Simple, India-first pricing.</h2>
+        <h2 className="section-title reveal">One simple price.</h2>
         <p className="section-sub reveal">
-          Start free. Scale as you grow. Pay via UPI. No credit card required.
+          Pay once. Activate for 24 hours. Deploy up to 1 AI agent. No monthly commitments.
         </p>
 
         {/* USER PLAN STATUS */}
-        {userPlan && (
+        {userPlan && userPlan.hasActivePlan && (
           <div className="user-plan-status reveal">
-            <div className="current-plan">Current Plan</div>
-            <div className="plan-badge">{userPlan.plan.name}</div>
+            <div className="current-plan">Current Plan Status</div>
+            <div className="plan-badge-status">{userPlan.plan.name} - Active</div>
+            {userPlan.daysRemaining > 0 ? (
+              <div className="days-remaining">
+                {userPlan.daysRemaining} {userPlan.daysRemaining === 1 ? 'day' : 'days'} remaining
+              </div>
+            ) : (
+              <div className="days-remaining" style={{color: '#d63384'}}>Plan expired</div>
+            )}
             <div className="remaining">
-              {userPlan.remainingAgents} agent{userPlan.remainingAgents !== 1 ? 's' : ''} remaining out of {userPlan.plan.maxAgents}
+              {userPlan.remainingAgents} agent{userPlan.remainingAgents !== 1 ? 's' : ''} remaining (1 agent max)
             </div>
-            {userPlan.planExpiry && new Date(userPlan.planExpiry) > new Date() && (
-              <div className="expiry">
-                Expires: {new Date(userPlan.planExpiry).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
+            {userPlan.expiryDate && (
+              <div className="remaining" style={{marginTop: '8px', fontSize: '13px'}}>
+                Expires: {new Date(userPlan.expiryDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
               </div>
             )}
           </div>
         )}
 
         {/* PAYMENT SUCCESS */}
-        {paymentSuccess && (
+        {success && (
           <div className="success-box reveal">
             <div className="success-icon">🎉</div>
             <div className="success-title">Payment Successful!</div>
             <div className="success-message">
-              Your plan has been activated. You can now deploy your AI agents!
+              Your 1-day trial has been activated! You can now deploy your AI agent for the next 24 hours.
             </div>
-            <Link href="/deploy" className="btn-plan btn-plan-primary" style={{maxWidth: '200px', margin: '0 auto'}}>
+            <Link href="/deploy" className="btn-plan btn-plan-white" style={{maxWidth: '240px', margin: '20px auto 0', padding: '14px'}}>
               Deploy Agent Now →
             </Link>
           </div>
         )}
 
-        {/* PRICING GRID - YOUR DESIGN WITH MY PRICING */}
-        <div className="pricing-grid">
-          {/* STARTER - FREE */}
+        {/* SINGLE PRICING CARD */}
+        {plan && (
           <div className="price-card reveal">
-            <div className="plan-name">Starter</div>
-            <div className="plan-price">FREE</div>
-            <div className="plan-period">Forever</div>
+            <div className="price-badge">1-Day Trial</div>
+            <div className="plan-name">{plan.name}</div>
+            <div className="plan-price">₹999</div>
+            <div className="plan-period">for 1 day (24 hours)</div>
             <ul className="plan-features">
-              <li>1 AI Agent</li>
-              <li>Basic AI models (Claude 3, GPT-4o)</li>
-              <li>Custom subdomain</li>
+              <li>1 AI Agent deployment</li>
+              <li>All AI models (Claude 3.5, GPT-4o, Gemini)</li>
               <li>512MB memory per agent</li>
-              <li>Community support</li>
-              <li><strong>Zero cost forever</strong></li>
-            </ul>
-            <Link href="/deploy" className="btn-plan btn-plan-outline">
-              Deploy Free
-            </Link>
-            <div className="payment-methods">
-              Pay: No payment needed
-            </div>
-          </div>
-
-          {/* STARTER PRO - ₹99 */}
-          <div className="price-card featured reveal">
-            <div className="price-badge">Most Popular</div>
-            <div className="plan-name">Starter Pro</div>
-            <div className="plan-price">₹99</div>
-            <div className="plan-period">per month</div>
-            <ul className="plan-features">
-              <li>3 AI Agents</li>
-              <li>Advanced AI (Claude 3.5, GPT-4o, Gemini)</li>
-              <li>Custom domain support</li>
-              <li>1GB memory per agent</li>
-              <li>Email support</li>
-              <li>Priority deployment</li>
+              <li>Full privacy protection</li>
+              <li>24-hour active period</li>
+              <li>No monthly commitment</li>
             </ul>
             <button
-              onClick={() => handlePurchase('starter_pro')}
-              disabled={loading}
+              onClick={handlePurchase}
+              disabled={loading || (userPlan && userPlan.hasActivePlan)}
               className="btn-plan btn-plan-white"
             >
-              {loading && selectedPlan === 'starter_pro' ? 'Processing...' : `Buy Now ₹99`}
+              {loading ? 'Processing...' : userPlan && userPlan.hasActivePlan ? 'Plan Active' : 'Purchase Now - ₹999'}
             </button>
-            <div className="payment-methods">
-              Pay via UPI
-              <div className="payment-icons">
-                📱 💳 🏧 🪙
-              </div>
+            <div className="button-sub">
+              Pay via UPI (Google Pay, PhonePe, Paytm)
             </div>
           </div>
-
-          {/* BUSINESS - ₹699 */}
-          <div className="price-card reveal">
-            <div className="plan-name">Business</div>
-            <div className="plan-price">₹699</div>
-            <div className="plan-period">per month</div>
-            <ul className="plan-features">
-              <li>Unlimited Agents</li>
-              <li>All AI models + Nemotron</li>
-              <li>Enterprise security suite</li>
-              <li>2GB+ memory per agent</li>
-              <li>24/7 Priority support</li>
-              <li>White-label domain option</li>
-            </ul>
-            <button
-              onClick={() => handlePurchase('business')}
-              disabled={loading}
-              className="btn-plan btn-plan-outline"
-            >
-              {loading && selectedPlan === 'business' ? 'Processing...' : `Buy Now ₹699`}
-            </button>
-            <div className="payment-methods">
-              Pay via UPI/Card/Netbanking
-              <div className="payment-icons">
-                💳 🏧 📧 💵
-              </div>
-            </div>
-          </div>
-        </div>
+        )}
 
         {/* FAQ */}
         <div className="faq-section reveal">
@@ -753,42 +632,42 @@ export default function Pricing() {
           <div className="faq-item">
             <div className="faq-question">💳 Can I pay via UPI?</div>
             <div className="faq-answer">
-              Yes! We accept UPI from Google Pay, PhonePe, Paytm, and BHIM. No credit card required.
+              Yes! We accept UPI from Google Pay, PhonePe, Paytm, and BHIM. ₹999 instant activation via UPI.
             </div>
           </div>
 
           <div className="faq-item">
-            <div className="faq-question">💰 Is there a free subscription?</div>
+            <div className="faq-question">⏰ How does the 1-day trial work?</div>
             <div className="faq-answer">
-              Yes! Our Starter plan is free forever with 1 AI agent. Perfect for personal use.
+              After payment, you get 24 hours (1 day) of access. During this time, you can deploy 1 AI agent. The agent remains active until the expiry time.
             </div>
           </div>
 
           <div className="faq-item">
-            <div className="faq-question">🔄 Can I cancel anytime?</div>
+            <div className="faq-question">🔄 Can I extend after 1 day?</div>
             <div className="faq-answer">
-              Absolutely! No contracts, cancel anytime from your dashboard. No questions asked.
+              Yes! You can purchase another 1-day trial after the current one expires. No monthly commitment needed.
             </div>
           </div>
 
           <div className="faq-item">
-            <div className="faq-question">🇮🇳 Why is pricing in Rupees?</div>
+            <div className="faq-question">🤖 Can I deploy more than 1 agent?</div>
             <div className="faq-answer">
-              We're India-first! Prices in INR (₹), UPI payments accepted, servers in Mumbai for low latency.
+              Each ₹999 trial includes up to 1 agent only. For more agents, purchase additional trials.
             </div>
           </div>
 
           <div className="faq-item">
-            <div className="faq-question">⚡ What's the API cost?</div>
+            <div className="faq-question">🇮🇳 Why定价 in Rupees?</div>
             <div className="faq-answer">
-              AI model costs vary: Claude 3 (~₹0.001/1K tokens), GPT-4o (~₹0.0007/1K tokens). We're 10x cheaper than competitors!
+              We're India-first! Pricing in INR (₹), UPI payments accepted, servers in India for low latency.
             </div>
           </div>
 
           <div className="faq-item">
             <div className="faq-question">🚀 How quickly can I deploy?</div>
             <div className="faq-answer">
-              As fast as 60 seconds! Paste your Telegram token, select AI model, click deploy → agent live instantly.
+              As fast as 60 seconds! After UPI payment confirmation (~5-10 seconds), you can deploy immediately.
             </div>
           </div>
         </div>
