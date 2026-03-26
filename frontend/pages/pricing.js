@@ -4,19 +4,32 @@ import Link from 'next/link'
 import Script from 'next/script'
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+const userId = 'u_' + Math.random().toString(36).substr(2, 8)
 
 export default function Pricing() {
   const [plans, setPlans] = useState(null)
   const [userPlan, setUserPlan] = useState(null)
   const [selectedPlan, setSelectedPlan] = useState(null)
   const [loading, setLoading] = useState(false)
-  const [userId] = useState('u_' + Math.random().toString(36).substr(2, 8))
   const [showCheckout, setShowCheckout] = useState(false)
   const [paymentSuccess, setPaymentSuccess] = useState(false)
 
   useEffect(() => {
     fetchPlans()
     fetchUserPlan()
+
+    // Scroll reveal - run on client only
+    setTimeout(() => {
+      const reveals = document.querySelectorAll('.reveal')
+      const observer = new IntersectionObserver((entries) => {
+        entries.forEach(e => {
+          if (e.isIntersecting) {
+            e.target.classList.add('visible')
+          }
+        })
+      }, { threshold: 0.12 })
+      reveals.forEach(r => observer.observe(r))
+    }, 100)
   }, [])
 
   const fetchPlans = async () => {
@@ -40,6 +53,12 @@ export default function Pricing() {
   }
 
   const handlePurchase = async (planName) => {
+    if (planName === 'free') {
+      // Free plan - activate directly
+      setPaymentSuccess(true)
+      return
+    }
+
     setLoading(true)
     setSelectedPlan(planName)
 
@@ -53,13 +72,8 @@ export default function Pricing() {
       const data = await res.json()
 
       if (data.success) {
-        if (data.freePlan) {
-          setPaymentSuccess(true)
-          fetchUserPlan()
-        } else {
-          setShowCheckout(true)
-          initRazorpayCheckout(data.order)
-        }
+        setShowCheckout(true)
+        initRazorpayCheckout(data.order)
       } else {
         alert(data.error || 'Failed to create payment')
       }
@@ -75,14 +89,13 @@ export default function Pricing() {
     if (typeof window !== 'undefined' && window.Razorpay) {
       const options = {
         key: order.key_id,
-        amount: order.amount * 100, // Razorpay expects in paise
+        amount: order.amount * 100,
         currency: order.currency,
         name: 'SecureClaw',
         description: `${order.plan} Plan`,
         order_id: order.id,
         image: '/logo.png',
         handler: function (response) {
-          // Payment successful
           verifyPayment(response.razorpay_order_id, response.razorpay_payment_id, response.razorpay_signature, order.plan)
         },
         prefill: {
@@ -94,16 +107,13 @@ export default function Pricing() {
           userId: userId,
           plan: order.plan
         },
-        theme: {
-          color: '#2251cc'
-        },
+        theme: { color: '#2251cc' },
         method: {
           upi: true,
           card: true,
           netbanking: true,
           wallet: true,
-          emi: true,
-          paylater: false
+          emi: true
         }
       }
 
@@ -153,356 +163,671 @@ export default function Pricing() {
     )
   }
 
-  const planCards = Object.entries(plans).map(([key, plan]) => ({
-    key,
-    ...plan
-  }))
-
   return (
     <>
       <Head>
         <title>Pricing — SecureClaw</title>
-        <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;0,600;0,700;1,300&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
       </Head>
 
       <Script src="https://checkout.razorpay.com/v1/checkout.js" strategy="afterInteractive" />
 
-      <div style={{
-        fontFamily: "'DM Sans', sans-serif",
-        background: 'linear-gradient(135deg, #f8f7ff, #eef3ff, #fde8f0)',
-        minHeight: '100vh',
-        padding: '40px 24px'
-      }}>
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: '60px' }}>
-          <Link href="/">
-            <h1 style={{
-              fontSize: '36px',
-              fontWeight: '700',
-              color: '#12132a',
-              marginBottom: '10px',
-              cursor: 'pointer'
-            }}>
-              Secure<span style={{ color: '#2251cc' }}>Claw</span>
-            </h1>
-          </Link>
-          <p style={{ fontSize: '16px', color: '#8589b0' }}>
-            Choose the perfect plan for your AI agent needs
-          </p>
-        </div>
+      <style jsx>{`
+        :root {
+          --white: #ffffff;
+          --off-white: #f8f7ff;
+          --blue-deep: #2251cc;
+          --blue-mid: #3b6ff0;
+          --blue-light: #dde8ff;
+          --blue-pale: #eef3ff;
+          --pink-light: #fde8f0;
+          --pink-mid: #f9c8dc;
+          --pink-accent: #e8679a;
+          --text-dark: #12132a;
+          --text-mid: #4a4d72;
+          --text-light: #8589b0;
+          --radius: 20px;
+        }
 
-        {/* User Plan Status */}
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+          font-family: 'DM Sans', sans-serif;
+          background: var(--white);
+          color: var(--text-dark);
+        }
+
+        /* NAV */
+        nav {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 22px 60px;
+          position: sticky;
+          top: 0;
+          z-index: 100;
+          background: rgba(255,255,255,0.85);
+          backdrop-filter: blur(16px);
+          border-bottom: 1px solid rgba(221,232,255,0.6);
+        }
+
+        .logo {
+          font-family: 'Fraunces', serif;
+          font-size: 22px;
+          font-weight: 700;
+          color: var(--blue-deep);
+          letter-spacing: -0.5px;
+          text-decoration: none;
+        }
+
+        .logo span { color: var(--pink-accent); }
+
+        .nav-links { display: flex; gap: 36px; list-style: none; }
+
+        .nav-links a {
+          text-decoration: none;
+          color: var(--text-mid);
+          font-size: 14px;
+          font-weight: 500;
+          transition: color 0.2s;
+        }
+
+        .nav-links a:hover { color: var(--blue-deep); }
+
+        .nav-cta {
+          background: var(--blue-deep);
+          color: white !important;
+          padding: 10px 22px;
+          border-radius: 50px;
+          font-weight: 600 !important;
+          font-size: 13px !important;
+          transition: background 0.2s, transform 0.15s !important;
+        }
+
+        .nav-cta:hover {
+          background: var(--blue-mid) !important;
+          transform: translateY(-1px);
+          color: white !important;
+        }
+
+        /* PRICING SECTION */
+        .pricing-section {
+          min-height: 100vh;
+          padding: 100px 24px;
+          max-width: 1000px;
+          margin: 0 auto;
+          text-align: center;
+        }
+
+        .section-tag {
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 1.5px;
+          text-transform: uppercase;
+          color: var(--blue-mid);
+          margin-bottom: 14px;
+        }
+
+        .section-title {
+          font-family: 'Fraunces', serif;
+          font-size: clamp(30px, 4vw, 46px);
+          font-weight: 700;
+          letter-spacing: -1.5px;
+          line-height: 1.1;
+          margin-bottom: 18px;
+        }
+
+        .section-sub {
+          color: var(--text-mid);
+          font-size: 16px;
+          line-height: 1.7;
+          max-width: 600px;
+          margin: 0 auto 0;
+          text-align: center;
+        }
+
+        .pricing-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 20px;
+          margin-top: 60px;
+        }
+
+        .price-card {
+          background: var(--white);
+          border: 1.5px solid var(--blue-light);
+          border-radius: 24px;
+          padding: 36px 28px;
+          transition: all 0.25s;
+          text-align: left;
+          position: relative;
+        }
+
+        .price-card:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 20px 60px rgba(59,111,240,0.14);
+        }
+
+        .price-card.featured {
+          background: var(--blue-deep);
+          border-color: var(--blue-deep);
+          color: white;
+        }
+
+        .price-badge {
+          position: absolute;
+          top: -12px;
+          left: 50%;
+          transform: translateX(-50%);
+          background: var(--pink-accent);
+          color: white;
+          font-size: 11px;
+          font-weight: 700;
+          padding: 4px 14px;
+          border-radius: 50px;
+          letter-spacing: 0.5px;
+          text-transform: uppercase;
+          white-space: nowrap;
+        }
+
+        .plan-name {
+          font-size: 13px;
+          font-weight: 600;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+          color: var(--text-light);
+          margin-bottom: 10px;
+        }
+
+        .price-card.featured .plan-name {
+          color: rgba(255,255,255,0.6);
+        }
+
+        .plan-price {
+          font-family: 'Fraunces', serif;
+          font-size: 46px;
+          font-weight: 700;
+          letter-spacing: -2px;
+          color: var(--text-dark);
+          line-height: 1;
+          margin-bottom: 4px;
+        }
+
+        .price-card.featured .plan-price { color: white; }
+
+        .plan-period {
+          font-size: 13px;
+          color: var(--text-light);
+          margin-bottom: 24px;
+        }
+
+        .price-card.featured .plan-period {
+          color: rgba(255,255,255,0.55);
+        }
+
+        .plan-features {
+          list-style: none;
+          margin-bottom: 28px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
+        }
+
+        .plan-features li {
+          font-size: 14px;
+          color: var(--text-mid);
+          display: flex;
+          gap: 10px;
+          align-items: flex-start;
+        }
+
+        .price-card.featured .plan-features li {
+          color: rgba(255,255,255,0.8);
+        }
+
+        .plan-features li::before {
+          content: '✓';
+          color: var(--blue-mid);
+          font-weight: 700;
+          flex-shrink: 0;
+          margin-top: 1px;
+        }
+
+        .price-card.featured .plan-features li::before { color: var(--pink-mid); }
+
+        .btn-plan {
+          width: 100%;
+          padding: 13px;
+          border-radius: 50px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          border: none;
+          transition: all 0.2s;
+          text-align: center;
+          text-decoration: none;
+          display: block;
+        }
+
+        .btn-plan-outline {
+          background: transparent;
+          border: 1.5px solid var(--blue-light);
+          color: var(--blue-deep);
+        }
+
+        .btn-plan-outline:hover {
+          border-color: var(--blue-mid);
+          background: var(--blue-pale);
+        }
+
+        .btn-plan-white {
+          background: white;
+          color: var(--blue-deep);
+        }
+
+        .btn-plan-white:hover {
+          background: var(--pink-light);
+          transform: translateY(-1px);
+        }
+
+        .btn-plan-primary {
+          background: var(--blue-deep);
+          color: white;
+        }
+
+        .btn-plan-primary:hover {
+          background: var(--blue-mid);
+          transform: translateY(-1px);
+        }
+
+        .btn-plan-primary:disabled {
+          background: var(--blue-light);
+          cursor: not-allowed;
+          opacity: 0.6;
+        }
+
+        /* PAYMENT METHODS */
+        .payment-methods {
+          margin-top: 16px;
+          font-size: 11px;
+          color: var(--text-light);
+          text-align: center;
+        }
+
+        .payment-icons {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          margin-top: 8px;
+          font-size: 18px;
+        }
+
+        /* USER PLAN STATUS */
+        .user-plan-status {
+          max-width: 600px;
+          margin: 0 auto 40px;
+          background: var(--white);
+          padding: 24px 32px;
+          border-radius: 16px;
+          border: 1.5px solid var(--blue-light);
+          text-align: center;
+        }
+
+        .current-plan {
+          font-size: 13px;
+          color: var(--text-light);
+          margin-bottom: 8px;
+        }
+
+        .plan-badge {
+          font-size: 20px;
+          font-weight: 700;
+          color: var(--blue-deep);
+          margin-bottom: 10px;
+        }
+
+        .remaining {
+          font-size: 14px;
+          color: var(--text-mid);
+          margin-bottom: 8px;
+        }
+
+        .expiry {
+          font-size: 12px;
+          color: var(--text-light);
+        }
+
+        /* SUCCESS */
+        .success-box {
+          max-width: 500px;
+          margin: 0 auto 40px;
+          background: #f0fdf4;
+          padding: 28px 32px;
+          border-radius: 16px;
+          border: 1.5px solid #bbf7d0;
+          text-align: center;
+        }
+
+        .success-icon {
+          font-size: 48px;
+          margin-bottom: 16px;
+        }
+
+        .success-title {
+          font-size: 22px;
+          font-weight: 700;
+          color: #16a34a;
+          margin-bottom: 10px;
+        }
+
+        .success-message {
+          font-size: 14px;
+          color: #15803d;
+          margin-bottom: 20px;
+          line-height: 1.6;
+        }
+
+        /* FAQ */
+        .faq-section {
+          max-width: 800px;
+          margin: 60px auto;
+          text-align: center;
+        }
+
+        .faq-title {
+          font-size: 24px;
+          font-weight: 700;
+          color: var(--text-dark);
+          margin-bottom: 30px;
+        }
+
+        .faq-item {
+          text-align: left;
+          margin-bottom: 20px;
+          padding: 20px;
+          background: var(--white);
+          border: 1.5px solid var(--blue-light);
+          border-radius: 16px;
+        }
+
+        .faq-question {
+          font-size: 16px;
+          font-weight: 600;
+          color: var(--text-dark);
+          margin-bottom: 8px;
+          display: flex;
+          gap: 10px;
+          align-items: flex-start;
+        }
+
+        .faq-answer {
+          font-size: 14px;
+          color: var(--text-mid);
+          line-height: 1.6;
+          padding-left: 36px;
+        }
+
+        /* FOOTER */
+        footer {
+          border-top: 1px solid var(--blue-light);
+          padding: 40px 60px;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 16px;
+        }
+
+        .footer-logo {
+          font-family: 'Fraunces', serif;
+          font-size: 18px;
+          font-weight: 700;
+          color: var(--blue-deep);
+        }
+
+        .footer-logo span { color: var(--pink-accent); }
+        footer p { font-size: 13px; color: var(--text-light); }
+        .footer-links { display: flex; gap: 28px; list-style: none; }
+        .footer-links a { font-size: 13px; color: var(--text-light); text-decoration: none; transition: color 0.2s; }
+        .footer-links a:hover { color: var(--blue-deep); }
+
+        /* ANIMATIONS */
+        @keyframes fadeUp {
+          from { opacity: 0; transform: translateY(24px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .reveal {
+          opacity: 0;
+          transform: translateY(30px);
+          transition: all 0.6s ease;
+        }
+
+        .reveal.visible { opacity: 1; transform: translateY(0); }
+
+        @media (max-width: 768px) {
+          nav { padding: 16px 20px; }
+          .nav-links { display: none; }
+          .pricing-grid { grid-template-columns: 1fr; }
+          .faq-section { padding: 0 16px; }
+          footer { padding: 32px 20px; flex-direction: column; align-items: flex-start; }
+        }
+      `}</style>
+
+      {/* NAV */}
+      <nav>
+        <Link href="/" className="logo">Secure<span>Claw</span></Link>
+        <ul className="nav-links">
+          <li><Link href="/#features">Features</Link></li>
+          <li><Link href="/pricing" style={{color: 'var(--blue-deep)'}}>Pricing</Link></li>
+          <li><Link href="#docs">Docs</Link></li>
+          <li><Link href="/deploy" className="nav-cta">Deploy →</Link></li>
+        </ul>
+      </nav>
+
+      {/* PRICING */}
+      <section className="pricing-section">
+        <div className="section-tag reveal">Pricing</div>
+        <h2 className="section-title reveal">Simple, India-first pricing.</h2>
+        <p className="section-sub reveal">
+          Start free. Scale as you grow. Pay via UPI. No credit card required.
+        </p>
+
+        {/* USER PLAN STATUS */}
         {userPlan && (
-          <div style={{
-            maxWidth: '600px',
-            margin: '0 auto 40px',
-            background: '#fff',
-            padding: '20px',
-            borderRadius: '12px',
-            border: '1px solid #dde8ff',
-            textAlign: 'center'
-          }}>
-            <div style={{ fontSize: '14px', color: '#8589b0', marginBottom: '5px' }}>
-              Current Plan
-            </div>
-            <div style={{
-              fontSize: '24px',
-              fontWeight: '700',
-              color: '#2251cc',
-              marginBottom: '10px'
-            }}>
-              {userPlan.plan.name}
-            </div>
-            <div style={{ fontSize: '13px', color: '#4a4d72', marginBottom: '10px' }}>
-              {userPlan.remainingAgents} agents remaining out of {userPlan.plan.maxAgents}
+          <div className="user-plan-status reveal">
+            <div className="current-plan">Current Plan</div>
+            <div className="plan-badge">{userPlan.plan.name}</div>
+            <div className="remaining">
+              {userPlan.remainingAgents} agent{userPlan.remainingAgents !== 1 ? 's' : ''} remaining out of {userPlan.plan.maxAgents}
             </div>
             {userPlan.planExpiry && new Date(userPlan.planExpiry) > new Date() && (
-              <div style={{ fontSize: '12px', color: '#8589b0' }}>
-                Expires: {new Date(userPlan.planExpiry).toLocaleDateString('en-IN')}
+              <div className="expiry">
+                Expires: {new Date(userPlan.planExpiry).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}
               </div>
             )}
           </div>
         )}
 
-        {/* Payment Success */}
+        {/* PAYMENT SUCCESS */}
         {paymentSuccess && (
-          <div style={{
-            maxWidth: '500px',
-            margin: '0 auto 40px',
-            background: '#f0fdf4',
-            padding: '20px',
-            borderRadius: '12px',
-            border: '1px solid #bbf7d0',
-            textAlign: 'center'
-          }}>
-            <div style={{ fontSize: '40px', marginBottom: '10px' }}>🎉</div>
-            <div style={{
-              fontSize: '20px',
-              fontWeight: '700',
-              color: '#16a34a',
-              marginBottom: '10px'
-            }}>
-              Payment Successful!
-            </div>
-            <p style={{ fontSize: '14px', color: '#15803d' }}>
+          <div className="success-box reveal">
+            <div className="success-icon">🎉</div>
+            <div className="success-title">Payment Successful!</div>
+            <div className="success-message">
               Your plan has been activated. You can now deploy your AI agents!
-            </p>
-            <Link href="/deploy">
-              <button style={{
-                marginTop: '15px',
-                padding: '12px 24px',
-                background: '#16a34a',
-                color: 'white',
-                border: 'none',
-                borderRadius: '50px',
-                fontSize: '14px',
-                fontWeight: '600',
-                cursor: 'pointer'
-              }}>
-                Deploy Agent Now
-              </button>
+            </div>
+            <Link href="/deploy" className="btn-plan btn-plan-primary" style={{maxWidth: '200px', margin: '0 auto'}}>
+              Deploy Agent Now →
             </Link>
           </div>
         )}
 
-        {/* Pricing Cards */}
-        <div style={{
-          maxWidth: '1200px',
-          margin: '0 auto',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: '24px'
-        }}>
-          {planCards.map((plan) => (
-            <div
-              key={plan.key}
-              style={{
-                background: 'white',
-                borderRadius: '20px',
-                padding: '32px',
-                border: plan.key === 'pro' ? '2px solid #2251cc' : '1px solid #eef3ff',
-                boxShadow: plan.key === 'pro' ? '0 20px 60px rgba(34,81,204,0.15)' : '0 4px 12px rgba(0,0,0,0.05)',
-                position: 'relative',
-                transition: 'transform 0.2s',
-                cursor: 'pointer'
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-              onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+        {/* PRICING GRID - YOUR DESIGN WITH MY PRICING */}
+        <div className="pricing-grid">
+          {/* STARTER - FREE */}
+          <div className="price-card reveal">
+            <div className="plan-name">Starter</div>
+            <div className="plan-price">FREE</div>
+            <div className="plan-period">Forever</div>
+            <ul className="plan-features">
+              <li>1 AI Agent</li>
+              <li>Basic AI models (Claude 3, GPT-4o)</li>
+              <li>Custom subdomain</li>
+              <li>512MB memory per agent</li>
+              <li>Community support</li>
+              <li><strong>Zero cost forever</strong></li>
+            </ul>
+            <Link href="/deploy" className="btn-plan btn-plan-outline">
+              Deploy Free
+            </Link>
+            <div className="payment-methods">
+              Pay: No payment needed
+            </div>
+          </div>
+
+          {/* STARTER PRO - ₹99 */}
+          <div className="price-card featured reveal">
+            <div className="price-badge">Most Popular</div>
+            <div className="plan-name">Starter Pro</div>
+            <div className="plan-price">₹99</div>
+            <div className="plan-period">per month</div>
+            <ul className="plan-features">
+              <li>3 AI Agents</li>
+              <li>Advanced AI (Claude 3.5, GPT-4o, Gemini)</li>
+              <li>Custom domain support</li>
+              <li>1GB memory per agent</li>
+              <li>Email support</li>
+              <li>Priority deployment</li>
+            </ul>
+            <button
+              onClick={() => handlePurchase('starter_pro')}
+              disabled={loading}
+              className="btn-plan btn-plan-white"
             >
-              {plan.key === 'pro' && (
-                <div style={{
-                  position: 'absolute',
-                  top: '-12px',
-                  left: '50%',
-                  transform: 'translateX(-50%)',
-                  background: '#2251cc',
-                  color: 'white',
-                  padding: '6px 16px',
-                  borderRadius: '20px',
-                  fontSize: '12px',
-                  fontWeight: '700'
-                }}>
-                  MOST POPULAR
-                </div>
-              )}
-
-              <h3 style={{
-                fontSize: '24px',
-                fontWeight: '700',
-                color: '#12132a',
-                marginBottom: '8px'
-              }}>
-                {plan.name}
-              </h3>
-
-              <div style={{
-                fontSize: '36px',
-                fontWeight: '700',
-                color: '#2251cc',
-                marginBottom: '8px',
-                display: 'flex',
-                alignItems: 'baseline',
-                gap: '4px'
-              }}>
-                <span>₹{plan.price}</span>
-                {plan.duration > 0 && (
-                  <span style={{ fontSize: '14px', color: '#8589b0', fontWeight: '400' }}>
-                    /{plan.duration === 1 ? 'month' : 'year'}
-                  </span>
-                )}
-              </div>
-
-              {plan.key === 'annual' && (
-                <div style={{
-                  fontSize: '13px',
-                  color: '#16a34a',
-                  fontWeight: '600',
-                  marginBottom: '20px'
-                }}>
-                  💰 Save 58% compared to monthly
-                </div>
-              )}
-
-              <div style={{ marginBottom: '24px' }}>
-                {plan.features.map((feature, idx) => (
-                  <div key={idx} style={{
-                    fontSize: '14px',
-                    color: '#4a4d72',
-                    marginBottom: '10px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px'
-                  }}>
-                    <span style={{ color: '#2251cc' }}>✓</span>
-                    {feature}
-                  </div>
-                ))}
-              </div>
-
-              {plan.price === 0 ? (
-                <button
-                  onClick={() => handlePurchase(plan.key)}
-                  disabled={loading}
-                  style={{
-                    width: '100%',
-                    padding: '15px',
-                    background: '#2251cc',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '12px',
-                    fontSize: '15px',
-                    fontWeight: '700',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    opacity: loading ? 0.6 : 1
-                  }}
-                >
-                  {loading && selectedPlan === plan.key ? 'Activating...' : 'Get Started Free'}
-                </button>
-              ) : (
-                <button
-                  onClick={() => handlePurchase(plan.key)}
-                  disabled={loading}
-                  style={{
-                    width: '100%',
-                    padding: '15px',
-                    background: plan.key === 'pro' ? '#2251cc' : 'white',
-                    color: plan.key === 'pro' ? 'white' : '#2251cc',
-                    border: '1.5px solid #2251cc',
-                    borderRadius: '12px',
-                    fontSize: '15px',
-                    fontWeight: '700',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    opacity: loading ? 0.6 : 1
-                  }}
-                >
-                  {loading && selectedPlan === plan.key ? 'Processing...' : `Buy Now - ₹${plan.price}`}
-                </button>
-              )}
-
-              <div style={{
-                marginTop: '16px',
-                fontSize: '11px',
-                color: '#8589b0',
-                textAlign: 'center'
-              }}>
-                💳 Pay via UPI, Card, Netbanking, Wallet
+              {loading && selectedPlan === 'starter_pro' ? 'Processing...' : `Buy Now ₹99`}
+            </button>
+            <div className="payment-methods">
+              Pay via UPI
+              <div className="payment-icons">
+                📱 💳 🏧 🪙
               </div>
             </div>
-          ))}
+          </div>
+
+          {/* BUSINESS - ₹699 */}
+          <div className="price-card reveal">
+            <div className="plan-name">Business</div>
+            <div className="plan-price">₹699</div>
+            <div className="plan-period">per month</div>
+            <ul className="plan-features">
+              <li>Unlimited Agents</li>
+              <li>All AI models + Nemotron</li>
+              <li>Enterprise security suite</li>
+              <li>2GB+ memory per agent</li>
+              <li>24/7 Priority support</li>
+              <li>White-label domain option</li>
+            </ul>
+            <button
+              onClick={() => handlePurchase('business')}
+              disabled={loading}
+              className="btn-plan btn-plan-outline"
+            >
+              {loading && selectedPlan === 'business' ? 'Processing...' : `Buy Now ₹699`}
+            </button>
+            <div className="payment-methods">
+              Pay via UPI/Card/Netbanking
+              <div className="payment-icons">
+                💳 🏧 📧 💵
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* FAQ Section */}
+        {/* FAQ */}
+        <div className="faq-section reveal">
+          <h2 className="faq-title">Frequently Asked Questions</h2>
+
+          <div className="faq-item">
+            <div className="faq-question">💳 Can I pay via UPI?</div>
+            <div className="faq-answer">
+              Yes! We accept UPI from Google Pay, PhonePe, Paytm, and BHIM. No credit card required.
+            </div>
+          </div>
+
+          <div className="faq-item">
+            <div className="faq-question">💰 Is there a free subscription?</div>
+            <div className="faq-answer">
+              Yes! Our Starter plan is free forever with 1 AI agent. Perfect for personal use.
+            </div>
+          </div>
+
+          <div className="faq-item">
+            <div className="faq-question">🔄 Can I cancel anytime?</div>
+            <div className="faq-answer">
+              Absolutely! No contracts, cancel anytime from your dashboard. No questions asked.
+            </div>
+          </div>
+
+          <div className="faq-item">
+            <div className="faq-question">🇮🇳 Why is pricing in Rupees?</div>
+            <div className="faq-answer">
+              We're India-first! Prices in INR (₹), UPI payments accepted, servers in Mumbai for low latency.
+            </div>
+          </div>
+
+          <div className="faq-item">
+            <div className="faq-question">⚡ What's the API cost?</div>
+            <div className="faq-answer">
+              AI model costs vary: Claude 3 (~₹0.001/1K tokens), GPT-4o (~₹0.0007/1K tokens). We're 10x cheaper than competitors!
+            </div>
+          </div>
+
+          <div className="faq-item">
+            <div className="faq-question">🚀 How quickly can I deploy?</div>
+            <div className="faq-answer">
+              As fast as 60 seconds! Paste your Telegram token, select AI model, click deploy → agent live instantly.
+            </div>
+          </div>
+        </div>
+
+        {/* TRUST BADGES */}
         <div style={{
-          maxWidth: '800px',
-          margin: '60px auto',
-          textAlign: 'center'
+          textAlign: 'center',
+          marginTop: '60px',
+          padding: '24px',
+          display: 'flex',
+          justifyContent: 'center',
+          gap: '48px',
+          flexWrap: 'wrap',
+          fontSize: '13px',
+          color: 'var(--text-mid)'
         }}>
-          <h2 style={{
-            fontSize: '24px',
-            fontWeight: '700',
-            color: '#12132a',
-            marginBottom: '30px'
-          }}>
-            Frequently Asked Questions
-          </h2>
-
-          <div style={{ textAlign: 'left' }}>
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{
-                fontSize: '16px',
-                fontWeight: '600',
-                color: '#12132a',
-                marginBottom: '8px'
-              }}>
-                🤔 Can I use any payment method?
-              </div>
-              <div style={{ fontSize: '14px', color: '#8589b0' }}>
-                Yes! We accept UPI, credit/debit cards, netbanking, and wallets (Paytm, PhonePe, GPay).
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{
-                fontSize: '16px',
-                fontWeight: '600',
-                color: '#12132a',
-                marginBottom: '8px'
-              }}>
-                💰 Is there a free subscription?
-              </div>
-              <div style={{ fontSize: '14px', color: '#8589b0' }}>
-                Yes! Our Starter plan is free forever with 1 AI agent. Perfect for personal use.
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{
-                fontSize: '16px',
-                fontWeight: '600',
-                color: '#12132a',
-                marginBottom: '8px'
-              }}>
-                🔄 Can I cancel anytime?
-              </div>
-              <div style={{ fontSize: '14px', color: '#8589b0' }}>
-                Absolutely! No contracts, cancel anytime from your dashboard. No questions asked.
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '20px' }}>
-              <div style={{
-                fontSize: '16px',
-                fontWeight: '600',
-                color: '#12132a',
-                marginBottom: '8px'
-              }}>
-                🔄 Can I upgrade or downgrade?
-              </div>
-              <div style={{ fontSize: '14px', color: '#8589b0' }}>
-                Yes! You can upgrade anytime from the pricing page. Downgrades take effect at the next billing cycle.
-              </div>
-            </div>
+          <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+            🔒 100% Secure Payments
+          </div>
+          <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+            📧 24/7 Email Support
+          </div>
+          <div style={{display: 'flex', alignItems: 'center', gap: '8px'}}>
+            🇮🇳 Made in India
           </div>
         </div>
+      </section>
 
-        {/* CTA */}
-        <div style={{ textAlign: 'center', marginTop: '40px' }}>
-          <p style={{ fontSize: '14px', color: '#8589b0', marginBottom: '16px' }}>
-            Need help? Contact us at support@secureclaw.app
-          </p>
-          <div style={{
-            display: 'flex',
-            justifyContent: 'center',
-            gap: '16px',
-            fontSize: '12px',
-            color: '#8589b0'
-          }}>
-            <span>🇮🇳 Made with ❤️ in India</span>
-            <span>🔒 100% Secure Payments</span>
-            <span>📧 Email Support</span>
-          </div>
-        </div>
-      </div>
+      {/* FOOTER */}
+      <footer>
+        <div className="footer-logo">Secure<span>Claw</span></div>
+        <p>© 2026 SecureClaw. Built with ❤️ in India.</p>
+        <ul className="footer-links">
+          <li><a href="#privacy">Privacy</a></li>
+          <li><a href="#terms">Terms</a></li>
+          <li><a href="#contact">Contact</a></li>
+          <li><a href="https://github.com/SultanAiMaster/secureclaw">GitHub</a></li>
+        </ul>
+      </footer>
     </>
   )
 }
