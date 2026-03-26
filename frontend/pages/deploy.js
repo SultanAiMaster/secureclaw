@@ -3,6 +3,7 @@ import Head from 'next/head'
 import Link from 'next/link'
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+const userId = 'u_' + Math.random().toString(36).substr(2, 8)
 
 export default function Deploy() {
   const [token, setToken] = useState('')
@@ -11,6 +12,15 @@ export default function Deploy() {
   const [step, setStep] = useState(-1)
   const [result, setResult] = useState(null)
   const [error, setError] = useState('')
+  const [userPlan, setUserPlan] = useState(null)
+
+  // Fetch user plan on mount
+  useState(() => {
+    fetch(`${API}/api/user/plan/${userId}`)
+      .then(res => res.json())
+      .then(data => setUserPlan(data))
+      .catch(err => console.error('Failed to fetch plan:', err))
+  })
 
   const steps = [
     'Validating token...',
@@ -23,6 +33,12 @@ export default function Deploy() {
   const deploy = async () => {
     if (!token.trim()) {
       setError('Please enter your Telegram Bot Token')
+      return
+    }
+
+    // Check plan limit
+    if (userPlan && !userPlan.canDeploy) {
+      setError(`Plan limit reached. Upgrade to deploy more agents (${userPlan.remainingAgents}/0 remaining)`)
       return
     }
 
@@ -43,8 +59,8 @@ export default function Deploy() {
         body: JSON.stringify({
           telegramToken: token,
           aiModel: model,
-          userId: 'u_' + Math.random().toString(36).substr(2, 8),
-          plan: 'starter'
+          userId: userId,
+          plan: userPlan?.user?.currentPlan || 'free'
         })
       })
 
@@ -105,6 +121,39 @@ export default function Deploy() {
             <p style={{ fontSize: '14px', color: '#8589b0' }}>
               Paste token → Agent live in 60s
             </p>
+
+            {/* Plan Status Badge */}
+            {userPlan && (
+              <div style={{
+                background: userPlan.canDeploy ? '#f0fdf4' : '#fff7ed',
+                border: userPlan.canDeploy ? '1px solid #bbf7d0' : '1px solid #fed7aa',
+                borderRadius: '20px',
+                padding: '8px 16px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                marginTop: '12px',
+                fontSize: '12px'
+              }}>
+                <span style={{
+                  color: userPlan.canDeploy ? '#16a34a' : '#ea580c',
+                  fontWeight: '600'
+                }}>
+                  {userPlan.plan.name}
+                </span>
+                <span style={{ color: '#8589b0' }}>•</span>
+                <span style={{ color: '#4a4d72' }}>
+                  {userPlan.remainingAgents} agent{userPlan.remainingAgents !== 1 ? 's' : ''} remaining
+                </span>
+                <Link href="/pricing" style={{
+                  color: userPlan.canDeploy ? '#16a34a' : '#2251cc',
+                  textDecoration: 'none',
+                  fontWeight: '600'
+                }}>
+                  {userPlan.canDeploy ? 'Upgrade' : 'Upgrade Plan →'}
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* Deploy Form */}
